@@ -10,6 +10,11 @@ if sys.platform == "win32":
     except Exception:
         pass
 
+# Force working directory to the directory where this script is located (Game Root)
+script_dir = os.path.dirname(os.path.abspath(__file__))
+os.chdir(script_dir)
+design_data_dir = os.path.join(script_dir, 'StarRail_Data', 'StreamingAssets', 'DesignData', 'Windows')
+
 # All official 2-character text languages supported by Honkai: Star Rail
 TEXT_LANGUAGES = {
     "1": ("en", "English"),
@@ -34,8 +39,8 @@ VOICE_LANGUAGES = {
     "4": ("cn", "Chinese")
 }
 
-def wait_exit(msg="กดปุ่มใดก็ได้เพื่อปิดโปรแกรม (Press any key to exit)...", code=0):
-    print(f"\n{msg}")
+def exit_program(code=0):
+    print("\nกด Enter หรือปุ่มใดก็ได้เพื่อปิดโปรแกรม (Press any key to exit)...")
     if sys.platform == "win32":
         try:
             import msvcrt
@@ -70,95 +75,23 @@ def prompt_choice(title, options):
         valid_codes["kr"] = "ko"
 
     while True:
-        sel = input("กรุณาเลือกหมายเลขหรือรหัสภาษา (Select number or code): ").strip().lower()
+        sel = input("กรุณาเลือกหมายเลขหรือพิมพ์รหัส (Select number or code): ").strip().lower()
         if sel in options:
             return options[sel][0]
         if sel in valid_codes:
             return valid_codes[sel]
         print("ตัวเลือกไม่ถูกต้อง กรุณาลองใหม่อีกครั้ง (Invalid choice, please try again).")
 
-def resolve_design_data_dir():
-    """Smart auto-detection of StarRail_Data directory."""
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    candidates = [
-        os.path.join(os.getcwd(), 'StarRail_Data', 'StreamingAssets', 'DesignData', 'Windows'),
-        os.path.join(script_dir, 'StarRail_Data', 'StreamingAssets', 'DesignData', 'Windows'),
-    ]
-
-    for p in candidates:
-        if os.path.exists(p):
-            return p
-
-    # Auto-detect from Desktop and common drives
-    search_roots = [
-        os.path.expanduser('~/Desktop'),
-        os.path.expanduser('~/Downloads'),
-        r"C:\HoYoPlay\games\Star Rail Games",
-        r"D:\HoYoPlay\games\Star Rail Games",
-        r"C:\Program Files\Star Rail\Games",
-        r"D:\Program Files\Star Rail\Games"
-    ]
-
-    detected = []
-    for root in search_roots:
-        if not os.path.exists(root):
-            continue
-        # Direct check
-        dd = os.path.join(root, 'StarRail_Data', 'StreamingAssets', 'DesignData', 'Windows')
-        if os.path.exists(dd) and dd not in detected:
-            detected.append(dd)
-        # Check subdirectories (e.g. StarRail_4.6.51_OS)
-        try:
-            for item in os.listdir(root):
-                sub = os.path.join(root, item)
-                if os.path.isdir(sub):
-                    dd_sub = os.path.join(sub, 'StarRail_Data', 'StreamingAssets', 'DesignData', 'Windows')
-                    if os.path.exists(dd_sub) and dd_sub not in detected:
-                        detected.append(dd_sub)
-        except Exception:
-            pass
-
-    if detected:
-        print("\n[+] ตรวจพบโฟลเดอร์เกมอัตโนมัติ (Auto-detected game folders):")
-        for i, path in enumerate(detected, 1):
-            print(f" [{i}] {path}")
-        sel = input("เลือกหมายเลขโฟลเดอร์ หรือกด Enter เพื่อใช้ตัวเลือกแรก [1]: ").strip()
-        idx = 0
-        if sel.isdigit() and 1 <= int(sel) <= len(detected):
-            idx = int(sel) - 1
-        return detected[idx]
-
-    # If still not found, allow user to drag & drop or paste game path
-    print("\n[!] ไม่พบโฟลเดอร์ StarRail_Data อัตโนมัติ")
-    user_input = input("กรุณาลากโฟลเดอร์เกม / StarRail_Data มาวางที่นี่ (หรือกด Enter เพื่อออก):\n> ").strip(' "\'')
-    if not user_input:
-        return None
-
-    # Handle if user dragged StarRail.exe or root directory
-    if os.path.isfile(user_input):
-        user_input = os.path.dirname(user_input)
-    if os.path.basename(user_input).lower() == "starrail_data":
-        dd = os.path.join(user_input, 'StreamingAssets', 'DesignData', 'Windows')
-    else:
-        dd = os.path.join(user_input, 'StarRail_Data', 'StreamingAssets', 'DesignData', 'Windows')
-
-    if os.path.exists(dd):
-        return dd
-
-    return None
-
 def main():
     try:
-        design_data_dir = resolve_design_data_dir()
-        if not design_data_dir:
-            print("[!] ไม่พบโฟลเดอร์ DesignData ของเกม Star Rail")
-            wait_exit()
+        if not os.path.exists(design_data_dir):
+            print(f"[!] ไม่พบโฟลเดอร์: {design_data_dir}")
+            print("กรุณานำไฟล์ hsrlingo.py ไปวางไว้ในโฟลเดอร์ Root ของเกม (โฟลเดอร์เดียวกับที่มี StarRail.exe)")
+            exit_program(1)
             return
 
-        print(f"\n[+] กำลังทำงานกับโฟลเดอร์: {design_data_dir}")
-
-        text_lang = prompt_choice("เลือกภาษาข้อความ (Select Text Language)", TEXT_LANGUAGES)
-        voice_lang = prompt_choice("เลือกภาษาเสียงพากย์ (Select Voice Language)", VOICE_LANGUAGES)
+        text_lang = prompt_choice("เลือกภาษาข้อความ (Text Language)", TEXT_LANGUAGES)
+        voice_lang = prompt_choice("เลือกภาษาเสียงพากย์ (Voice Language)", VOICE_LANGUAGES)
 
         # Convert to internal 2-letter codes used in DesignData (ja -> jp, ko -> kr)
         text_code = "jp" if text_lang == "ja" else ("kr" if text_lang == "ko" else text_lang)
@@ -220,10 +153,10 @@ def main():
         if not found:
             print("[!] ไม่พบไฟล์ภาษาที่ต้องการแก้ไขใน DesignData")
 
-        wait_exit()
+        exit_program(0)
 
     except KeyboardInterrupt:
-        print("\n\n[!] ยกเลิกการทำงาน (Operation canceled)")
+        print("\n\n[!] ยกเลิกการทำงาน")
         sys.exit(0)
 
 if __name__ == '__main__':

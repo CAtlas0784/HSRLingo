@@ -1,6 +1,7 @@
 import os
 import shutil
 import sys
+import winreg
 
 # Ensure UTF-8 output on Windows terminal
 if sys.platform == "win32":
@@ -82,6 +83,28 @@ def prompt_choice(title, options):
             return valid_codes[sel]
         print("ตัวเลือกไม่ถูกต้อง กรุณาลองใหม่อีกครั้ง (Invalid choice, please try again).")
 
+def sync_registry(text_code, voice_code):
+    """Sets PlayerPrefs in Windows Registry so the game boots directly in the chosen language."""
+    reg_paths = [
+        r"Software\Cognosphere\Star Rail",
+        r"Software\miHoYo\崩坏：星穹铁道"
+    ]
+    for r_path in reg_paths:
+        try:
+            with winreg.CreateKey(winreg.HKEY_CURRENT_USER, r_path) as key:
+                # String language keys
+                winreg.SetValueEx(key, "Language_h2876912797", 0, winreg.REG_SZ, text_code)
+                winreg.SetValueEx(key, "MIHOYOSDK_CURRENT_LANGUAGE_h255914971", 0, winreg.REG_SZ, text_code)
+                # Binary language keys (with null terminator)
+                bin_val = text_code.encode("utf-8") + b"\x00"
+                winreg.SetValueEx(key, "MIHOYOSDK_CURRENT_LANGUAGE_h2559149783", 0, winreg.REG_BINARY, bin_val)
+                # Audio language key
+                audio_bin = voice_code.encode("utf-8") + b"\x00"
+                winreg.SetValueEx(key, "LanguageSettings_LocalAudioLanguage_h882585060", 0, winreg.REG_BINARY, audio_bin)
+            print(f"[+] ซิงค์การตั้งค่าลง Windows Registry เรียบร้อย: {r_path}")
+        except Exception as e:
+            print(f"[!] คำเตือน: ไม่สามารถบันทึกลง Registry ({r_path}): {e}")
+
 def main():
     try:
         if not os.path.exists(design_data_dir):
@@ -100,7 +123,7 @@ def main():
         found = False
         for filename in os.listdir(design_data_dir):
             filepath = os.path.join(design_data_dir, filename)
-            if not os.path.isfile(filepath) or filename.endswith('.bak'):
+            if not os.path.isfile(filepath) or filename.endswith('.bak') or filename.endswith('.tmp'):
                 continue
 
             try:
@@ -123,10 +146,13 @@ def main():
 
             bak_path = filepath + '.bak'
             if not os.path.exists(bak_path):
-                shutil.copy2(filepath, bak_path)
-                print(f"[+] สร้างไฟล์สำรองไว้ที่: {filename}.bak")
+                try:
+                    shutil.copy2(filepath, bak_path)
+                    print(f"[+] สร้างไฟล์สำรองไว้ที่: {filename}.bak")
+                except Exception:
+                    pass
 
-            print(f"[*] กำลัง Patch ภาษา -> ข้อความ: [{text_code}] | เสียงพากย์: [{voice_code}]...")
+            print(f"[*] กำลัง Patch ไฟล์เกม -> ข้อความ: [{text_code}] | เสียงพากย์: [{voice_code}]...")
 
             # Move to os text language
             idx += 10 + 4
@@ -144,15 +170,22 @@ def main():
             idx += 1 + 4
             idx = replace_bytes(content, idx, text_code, 2)
 
-            with open(filepath, 'wb') as w:
+            # Safe write with temp file to avoid permission issues
+            tmp_path = filepath + '.tmp'
+            with open(tmp_path, 'wb') as w:
                 w.write(content)
+            os.replace(tmp_path, filepath)
 
-            print("[✓] แก้ไขภาษาสำเร็จเรียบร้อยแล้ว (Language patched successfully)!")
+            print("[✓] Patch ไฟล์ DesignData สำเร็จเรียบร้อย!")
             break
 
         if not found:
             print("[!] ไม่พบไฟล์ภาษาที่ต้องการแก้ไขใน DesignData")
 
+        # Sync Registry PlayerPrefs so the game actually starts in the selected language
+        sync_registry(text_code, voice_code)
+
+        print("\n[✓] แก้ไขภาษาสำเร็จทั้งหมดเรียบร้อยแล้ว (เปิดเกมได้เลย)!")
         exit_program(0)
 
     except KeyboardInterrupt:

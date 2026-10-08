@@ -42,20 +42,14 @@ VOICE_LANGUAGES = {
 
 def exit_program(code=0):
     print("\nกด Enter หรือปุ่มใดก็ได้เพื่อปิดโปรแกรม (Press any key to exit)...")
-    if sys.platform == "win32":
-        try:
+    try:
+        if sys.platform == "win32" and sys.stdin.isatty():
             import msvcrt
             msvcrt.getch()
-        except Exception:
-            try:
-                input()
-            except Exception:
-                pass
-    else:
-        try:
+        else:
             input()
-        except Exception:
-            pass
+    except Exception:
+        pass
     sys.exit(code)
 
 def replace_bytes(content, idx, choice, param):
